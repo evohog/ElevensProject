@@ -1,0 +1,241 @@
+import java.awt.event.MouseListener;
+import java.awt.event.MouseEvent;
+import javax.swing.JPanel;
+import java.awt.Graphics;
+import java.awt.Rectangle;
+import java.awt.Point;
+import java.util.ArrayList;
+
+class DrawPanel extends JPanel implements MouseListener {
+
+    private Deck d;
+    private Card[][] cards;
+    private boolean gameOver = false;
+
+    private ArrayList<Card> selected = new ArrayList<>();
+
+    private Rectangle replaceButton = new Rectangle(380, 10, 100, 30);
+    private Rectangle resetButton = new Rectangle(200, 420, 100, 30);
+
+    public DrawPanel() {
+
+        cards = new Card[3][3];
+        d = new Deck();
+
+        for (int r = 0; r < cards.length; r++) {
+            for (int c = 0; c < cards[0].length; c++) {
+                cards[r][c] = d.getRandomCard();
+            }
+        }
+
+        this.addMouseListener(this);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        int x = 50;
+        int y = 10;
+
+        for (int r = 0; r < cards.length; r++) {
+            for (int c = 0; c < cards[0].length; c++) {
+
+                Card card = cards[r][c];
+
+                g.drawImage(card.getImage(), x, y, null);
+
+                Rectangle hitbox = new Rectangle(
+                        x,
+                        y,
+                        card.getImage().getWidth(),
+                        card.getImage().getHeight()
+                );
+
+                card.setHitbox(hitbox);
+
+                if (card.getHighlight()) {
+                    g.drawRect(x, y, hitbox.width, hitbox.height);
+                }
+
+                x += 80;
+            }
+            y += 100;
+            x = 50;
+
+            if (gameOver) {
+                g.drawString("GAME OVER", 200, 250);
+            }
+
+
+        }
+
+        g.drawString("Cards left in deck: " + d.getDeck().size(), 50, y + 20);
+
+        // Replace button (top right)
+        g.drawRect(replaceButton.x, replaceButton.y, replaceButton.width, replaceButton.height);
+        g.drawString("Replace", replaceButton.x + 15, replaceButton.y + 20);
+
+        // Reset button (bottom center)
+        g.drawRect(resetButton.x, resetButton.y, resetButton.width, resetButton.height);
+        g.drawString("Play Again", resetButton.x + 5, resetButton.y + 20);
+    }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+
+        Point p = e.getPoint();
+
+        // -------------------------
+        // CARD SELECTION
+        // -------------------------
+        for (int r = 0; r < cards.length; r++) {
+            for (int c = 0; c < cards[0].length; c++) {
+
+                Card card = cards[r][c];
+
+                if (card.getHitbox().contains(p)) {
+
+                    if (selected.contains(card)) {
+                        selected.remove(card);
+                        card.flipHighlight();
+                    } else {
+                        selected.add(card);
+                        card.flipHighlight();
+                    }
+                }
+            }
+        }
+
+        // -------------------------
+        // REPLACE BUTTON
+        // -------------------------
+        if (replaceButton.contains(p)) {
+
+            if (isValidMove(selected)) {
+
+                for (Card selectedCard : selected) {
+
+                    for (int r = 0; r < cards.length; r++) {
+                        for (int c = 0; c < cards[0].length; c++) {
+
+                            if (cards[r][c] == selectedCard) {
+                                cards[r][c] = d.getRandomCard();
+                            }
+                        }
+                    }
+                }
+
+                // clear highlights
+                for (Card c : selected) {
+                    c.flipHighlight();
+                }
+
+                selected.clear();
+
+                if (!hasValidMoves()) {
+                    System.out.println("GAME OVER - No valid moves left");
+                }
+            }
+        }
+
+        // -------------------------
+        // RESET BUTTON
+        // -------------------------
+        if (resetButton.contains(p)) {
+
+            d = new Deck();
+
+            for (int r = 0; r < cards.length; r++) {
+                for (int c = 0; c < cards[0].length; c++) {
+                    cards[r][c] = d.getRandomCard();
+                }
+            }
+
+            // clear selection + reset highlights
+            for (Card c : selected) {
+                c.flipHighlight();
+            }
+
+            selected.clear();
+        }
+    }
+
+    // -------------------------
+    // GAME RULES
+    // -------------------------
+    private boolean isValidMove(ArrayList<Card> list) {
+
+        if (list.size() == 2) {
+            int a = valueToInt(list.get(0).getValue());
+            int b = valueToInt(list.get(1).getValue());
+            return a + b == 11;
+        }
+
+        if (list.size() == 3) {
+
+            boolean hasJ = false, hasQ = false, hasK = false;
+
+            for (Card c : list) {
+                if (c.getValue().equals("J")) hasJ = true;
+                if (c.getValue().equals("Q")) hasQ = true;
+                if (c.getValue().equals("K")) hasK = true;
+            }
+
+            return hasJ && hasQ && hasK;
+        }
+
+        return false;
+    }
+
+    private int valueToInt(String v) {
+
+        if (v.equals("A")) return 1;
+        if (v.equals("J") || v.equals("Q") || v.equals("K")) return 0;
+
+        return Integer.parseInt(v);
+    }
+    private boolean hasValidMoves() {
+
+        // check all pairs
+        for (int r1 = 0; r1 < cards.length; r1++) {
+            for (int c1 = 0; c1 < cards[0].length; c1++) {
+
+                for (int r2 = 0; r2 < cards.length; r2++) {
+                    for (int c2 = 0; c2 < cards[0].length; c2++) {
+
+                        if (r1 == r2 && c1 == c2) continue;
+
+                        Card a = cards[r1][c1];
+                        Card b = cards[r2][c2];
+
+                        if (valueToInt(a.getValue()) + valueToInt(b.getValue()) == 11) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // check JQK existence
+        boolean hasJ = false, hasQ = false, hasK = false;
+
+        for (int r = 0; r < cards.length; r++) {
+            for (int c = 0; c < cards[0].length; c++) {
+
+                String v = cards[r][c].getValue();
+
+                if (v.equals("J")) hasJ = true;
+                if (v.equals("Q")) hasQ = true;
+                if (v.equals("K")) hasK = true;
+            }
+        }
+
+        return hasJ && hasQ && hasK;
+    }
+
+    public void mouseReleased(MouseEvent e) {}
+    public void mouseEntered(MouseEvent e) {}
+    public void mouseExited(MouseEvent e) {}
+    public void mouseClicked(MouseEvent e) {}
+}
